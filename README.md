@@ -1,12 +1,8 @@
-# Piattaforma di Formazione e Fidelity per Project Informatica / WeAreProject
-
-# Training and Loyalty Platform for Project Informatica / WeAreProject
+# Piattaforma di Formazione e Fidelity per Project Informatica / WeAreProject | Training and Loyalty Platform for Project Informatica / WeAreProject
 
 ---
 
 ## Team
-
-### Italiano
 
 * Piazzalunga Alessandro
 * Gagu Mirko
@@ -15,24 +11,11 @@
 * Guisse Aboubakri
 
 **Obiettivo:** creare una piattaforma innovativa che unisca formazione e motivazione per dipendenti e appassionati del settore.
-
-### English
-
-* Piazzalunga Alessandro
-* Gagu Mirko
-* Ferrari Giovanni Battista
-* Garish Mohamed
-* Guisse Aboubakri
-
 **Goal:** create an innovative platform that combines training and motivation for employees and professionals interested in the sector.
 
 ---
 
-## Obiettivi del Progetto
-
-## Project Goals
-
-### Italiano
+## Obiettivi del Progetto | Project Goals
 
 * Formare **nuovi dipendenti** e **aspiranti lavoratori** nel settore WeAreProject.
 * Offrire un sistema di **classificazione** basato su:
@@ -47,7 +30,7 @@
   * Buoni
   * Maggiore benessere sul posto di lavoro
 
-### English
+--- 
 
 * Train **new employees** and **aspiring professionals** in the WeAreProject sector.
 * Provide a **ranking and classification system** based on:
@@ -64,11 +47,7 @@
 
 ---
 
-## Caratteristiche della Piattaforma
-
-## Platform Features
-
-### Italiano
+## Caratteristiche della Piattaforma | Platform Features
 
 * **Multicanale**: disponibile come sito web, app e programma desktop.
 * **Sistema di ranking/classifica** per aspiranti lavoratori e neo-dipendenti.
@@ -79,7 +58,7 @@
   * Focus sul benessere e sulla motivazione
 * **Interfaccia intuitiva** pensata per studenti e professionisti.
 
-### English
+---
 
 * **Multi-channel platform**: available as a website, mobile app, and desktop application.
 * **Ranking and leaderboard system** for aspiring workers and new employees.
@@ -92,11 +71,7 @@
 
 ---
 
-## Visione
-
-## Vision
-
-### Italiano
+## Visione | Vision
 
 Creare una piattaforma che diventi:
 
@@ -104,7 +79,7 @@ Creare una piattaforma che diventi:
 * Uno strumento di **motivazione e fidelizzazione** per i dipendenti.
 * Un ambiente digitale che valorizzi sia i **nuovi talenti** sia i **professionisti già inseriti**.
 
-### English
+---
 
 Create a platform that becomes:
 
@@ -114,14 +89,10 @@ Create a platform that becomes:
 
 ---
 
-## Conclusione
-
-## Conclusion
-
-### Italiano
+## Conclusione | Conclusion
 
 La piattaforma rappresenta una soluzione innovativa per integrare formazione, crescita professionale e fidelizzazione all’interno dell’ecosistema WeAreProject, migliorando l’esperienza sia dei nuovi candidati sia dei dipendenti già presenti.
 
-### English
+---
 
 The platform represents an innovative solution to integrate training, professional growth, and employee loyalty within the WeAreProject ecosystem, improving the experience of both new candidates and existing employees.
