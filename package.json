@@ -1,0 +1,9 @@
+{
+  "name": "project-academy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WeAreProject Academy — piattaforma di formazione con AI custom",
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -2,10 +2,15 @@
 // CONFIG & STATE
 // ═══════════════════════════════════════════════════════════════
 const CONFIG = {
-API_KEY: "f5cf744eddde436a9f9b3e4eecad67f7.R1AdWvcD19SPCLvV",
-API_URL: "https://z.ai/manage-apikey/apikey-list",
-MODEL: "claude-sonnet-4-20250514",
-MAX_TOKENS: 1000
+// Endpoint della Serverless Function su Vercel (file: /api/chat.js).
+// Tiene la chiave API lato server come Environment Variable.
+// Se non è disponibile, il chatbot usa automaticamente il motore locale.
+API_URL: "/api/chat",
+MODEL: "weareproject-academy-v1",
+MAX_TOKENS: 800,
+// Se true, prova prima la serverless function;
+// se non risponde (404/timeout/errore) cade sul motore locale.
+USE_REMOTE: true
 };
 
 const STATE = {
@@ -940,49 +945,236 @@ STATE.aiMessages.push({ role: 'user', content: text });
 STATE.aiTyping = true;
 $('ai-send-btn').disabled = true;
 const typingEl = showAITyping();
+
+// Piccolo delay simulato per UX (l'AI "pensa")
+const thinkingDelay = 400 + Math.random() * 600;
+let reply = null;
+
+// 1) Tenta la Serverless Function /api/chat (chiave API lato server)
+if (CONFIG.USE_REMOTE) {
 try {
-if (!CONFIG.API_KEY) {
-throw new Error('API key not configured');
-}
+const ctrl = new AbortController();
+const tid = setTimeout(() => ctrl.abort(), 8000);
 const res = await fetch(CONFIG.API_URL, {
 method: 'POST',
-headers: {
-'Content-Type': 'application/json',
-'x-api-key': CONFIG.API_KEY,
-'anthropic-version': '2023-06-01'
-},
+headers: { 'Content-Type': 'application/json' },
+signal: ctrl.signal,
 body: JSON.stringify({
 model: CONFIG.MODEL,
 max_tokens: CONFIG.MAX_TOKENS,
 system: AI_SYSTEM,
+section: STATE.currentSection,
+profile: { name: STATE.userProfile.name, role: STATE.userProfile.role, level: STATE.userProfile.level },
 messages: STATE.aiMessages.slice(-10)
 })
 });
-if (!res.ok) throw new Error('API error');
+clearTimeout(tid);
+if (res.ok) {
 const data = await res.json();
+reply = data.reply || data.content?.[0]?.text || null;
+} else if (res.status === 404) {
+CONFIG.USE_REMOTE = false; // function non deployata: non riprovare
+}
+} catch (err) {
+// timeout/network: cadiamo sul motore locale
+}
+}
+
+// 2) Fallback: motore AI locale (sempre disponibile)
+if (!reply) {
+await new Promise(r => setTimeout(r, thinkingDelay));
+reply = wapLocalAI(text, STATE.aiMessages, STATE.currentSection);
+}
+
 typingEl.remove();
-const reply = data.content?.[0]?.text || 'Scusa, non ho capito. Riprova con un\'altra domanda.';
 STATE.aiMessages.push({ role: 'assistant', content: reply });
 appendAIMessage(reply, 'bot');
-} catch (e) {
-typingEl.remove();
-const fallback = getFallbackAI(text);
-STATE.aiMessages.push({ role: 'assistant', content: fallback });
-appendAIMessage(fallback, 'bot');
-}
 STATE.aiTyping = false;
 $('ai-send-btn').disabled = false;
 saveState();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// MOTORE AI LOCALE — "WeAreProject Academy Engine v1"
+// Intent matching + slot extraction + risposte context-aware.
+// Funziona 100% offline: nessuna chiave API, nessun costo, nessun dato esfiltrato.
+// ═══════════════════════════════════════════════════════════════
+const WAP_KB = {
+courses: [
+{ key:'aws', kw:['aws','amazon','cloud practitioner'], title:'AWS Cloud Practitioner', hours:24, level:'Beginner', cert:'AWS Certified' },
+{ key:'cyber', kw:['cyber','security','sicurezza','soc','siem'], title:'Cybersecurity Fundamentals', hours:18, level:'Intermediate', cert:'Security Cert' },
+{ key:'ai', kw:['intelligenza','machine learning','ml python','python ai'], title:'AI & Machine Learning con Python', hours:30, level:'Advanced', cert:'AI Specialist' },
+{ key:'react', kw:['react','typescript','frontend','ts','javascript'], title:'React & TypeScript Avanzato', hours:20, level:'Intermediate', cert:'Frontend Cert' },
+{ key:'docker', kw:['docker','kubernetes','k8s','devops','container'], title:'Docker & Kubernetes', hours:22, level:'Intermediate', cert:'DevOps Cert' },
+{ key:'lead', kw:['leadership','soft skill','comunicazione','team manager'], title:'Leadership & Comunicazione', hours:12, level:'All levels', cert:'Leadership' },
+{ key:'zt', kw:['zero trust','defender','csoc'], title:'Zero Trust Security Architecture', hours:16, level:'Advanced', cert:'Security Advanced' },
+{ key:'pg', kw:['postgres','sql','database','db design'], title:'PostgreSQL & Database Design', hours:14, level:'Intermediate', cert:'Database Cert' },
+{ key:'gen', kw:['generative','genai','llm','prompt','rag','chatbot'], title:'Generative AI in Azienda', hours:10, level:'Intermediate', cert:'AI Champion' }
+],
+intents: [
+{ id:'greet', kw:['ciao','salve','hey','buongiorno','buonasera','hi','hello'] },
+{ id:'thanks', kw:['grazie','thank','thanks','ottimo','perfetto'] },
+{ id:'bye', kw:['arrivederci','addio','a presto'] },
+{ id:'who', kw:['chi sei','chi siete','cosa sei','presentati','about'] },
+{ id:'company', kw:['weareproject','project informatica','gruppo','sede','bergamo','stezzano','ecosistema'] },
+{ id:'academy4u', kw:['academy4u','academy 4u','neodiplomati','neolaureati','stage 2 mesi'] },
+{ id:'jobs', kw:['posizion','lavoro','assunzion','candidat','job','stage','tirocinio','cv','curriculum'] },
+{ id:'courses', kw:['corso','corsi','catalogo','formazione','impara','imparare','studiare'] },
+{ id:'cert', kw:['certificazion','certificat','attestato','badge esame'] },
+{ id:'career', kw:['carriera','career','percorso','crescita','consigli','suggeris','roadmap','diventare'] },
+{ id:'mentor', kw:['mentor','tutor','affiancamento','1to1','one to one','session'] },
+{ id:'wellbeing', kw:['benessere','wellbeing','mood','umore','stress','burnout','salute'] },
+{ id:'analytics', kw:['dashboard','analytics','metric','kpi','grafico','statistic'] },
+{ id:'ranking', kw:['classific','ranking','xp','livello','punti','leaderboard','premi'] },
+{ id:'pcto', kw:['pcto','itis','marconi','scuola','studente','liceo','superior'] },
+{ id:'price', kw:['cost','prezzo','quanto cost','tariff','pagament','gratuit'] },
+{ id:'contact', kw:['contatt','email','telefono','recapit','scrivi'] }
+]
+};
+
+function wapNorm(t) {
+return (t || '').toLowerCase()
+.replace(/[àáâä]/g,'a').replace(/[èéêë]/g,'e').replace(/[ìíîï]/g,'i')
+.replace(/[òóôö]/g,'o').replace(/[ùúûü]/g,'u')
+.replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function wapDetectIntents(text) {
+const t = wapNorm(text);
+const scores = {};
+for (const it of WAP_KB.intents) {
+let s = 0;
+for (const k of it.kw) if (t.includes(wapNorm(k))) s += k.length >= 6 ? 2 : 1;
+if (s > 0) scores[it.id] = s;
+}
+return Object.entries(scores).sort((a,b)=>b[1]-a[1]).map(([id])=>id);
+}
+
+function wapMatchCourses(text) {
+const t = wapNorm(text);
+const hits = [];
+for (const c of WAP_KB.courses) {
+for (const k of c.kw) {
+if (t.includes(wapNorm(k))) { hits.push(c); break; }
+}
+}
+return hits;
+}
+
+function wapAnswer(intent, ctx) {
+const name = (ctx && ctx.profile && ctx.profile.name || '').split(' ')[0] || '';
+const hi = name ? (name + ', ') : '';
+switch(intent){
+case 'greet':
+return `Ciao${name?' '+name:''}! 👋 Sono **WAP Assistant**, l'AI dell'Academy. Posso aiutarti con:\n• 📚 Corsi e certificazioni\n• 🎓 Academy4U (per studenti)\n• 💼 Posizioni aperte\n• 🚀 Career path personalizzato\n\nDi cosa vuoi parlare?`;
+case 'thanks':
+return `Figurati! 😊 Se vuoi posso suggerirti un **prossimo passo** nel tuo percorso formativo. Basta dirmi cosa stai studiando ora.`;
+case 'bye':
+return `A presto${name?' '+name:''}! 👋 Ricorda: la tua streak di studio ti aspetta nella sezione Profilo.`;
+case 'who':
+return `Sono **WAP Assistant**, l'assistente AI di WeAreProject Academy. Conosco il catalogo corsi, i percorsi di carriera del Gruppo e Academy4U.\n\n_Demo locale: nessun dato lascia il tuo browser._`;
+case 'company':
+return `**Gruppo WeAreProject** in numeri:\n• 510 M€ di fatturato\n• 700+ professionisti\n• 7.500+ clienti enterprise\n• 9 aziende specializzate\n\nCapogruppo: **Project Informatica** (Stezzano, BG). Aree: Cybersecurity SOC/NOC, Hybrid Cloud, AI Solutions, Digital Workplace, Application & Data, Managed Services.`;
+case 'academy4u':
+return `**Academy4U** è il percorso gratuito di 2 mesi per neodiplomati/neolaureati ICT.\n\n✅ Include:\n• Lezioni con tech lead WeAreProject\n• Affiancamento on the job su progetti reali\n• Possibile assunzione in apprendistato\n\n📩 Candidati: CV a **job@weareproject.it** con oggetto _"Candidatura Project ICT Academy"_.`;
+case 'jobs':
+return `${hi}al momento sono aperte:\n• 💻 Junior Frontend / Backend Developer\n• 🛡️ Junior Cybersecurity Analyst (SOC)\n• ☁️ Junior Cloud Engineer\n• 🤖 AI Engineer Trainee\n• 🎓 PCTO Cybersecurity & AI\n\nSede: Bergamo/Stezzano. Apri la sezione **Studenti** per candidarti.`;
+case 'cert':
+return `Le certificazioni del Gruppo includono:\n• AWS (Practitioner → Solutions Architect)\n• Microsoft Azure (Fundamentals → Expert)\n• Cisco CCNA / CCNP\n• VMware VCP\n• ISC2 / CompTIA Security+\n• Kubernetes CKA / CKAD\n\nOgni corso Academy include un **badge verificato** e prepara all'esame ufficiale. Vuoi un consiglio per un ruolo specifico?`;
+case 'mentor':
+return `Puoi prenotare una sessione 1to1 dalla sezione **Mentori**:\n• Marco Bianchi — Cloud Architect (AWS/Azure/K8s)\n• Sofia Ricci — Tech Lead Node.js & DevOps\n• Anna Greco — Security Lead (SOC/SIEM/Zero Trust)\n• Diego Lavezzi — AI Solution Manager\n\nLe sessioni durano 45 min e sono gratuite per i membri Academy.`;
+case 'wellbeing':
+return `Il tuo **wellbeing** conta. Dalla sezione Benessere puoi:\n• Fare il check-in settimanale dell'umore\n• Accedere allo sportello psicologico convenzionato\n• Prenotare la palestra aziendale\n• Consultare la polizza sanitaria estesa\n\nVuoi che apra il check-in adesso?`;
+case 'analytics':
+return `Nella **Dashboard formativa** trovi in tempo reale:\n• Ore di formazione tue e del team\n• Trend mensile di completamento\n• Distribuzione skill del reparto\n• Gap analysis vs ruoli target\n\nFiltri per dipartimento, periodo e tipologia di corso.`;
+case 'ranking':
+return `Il sistema di **gamification** funziona così:\n• +50 XP per modulo completato\n• +200 XP per quiz finale ≥80%\n• +500 XP per ogni certificazione\n• Streak giornaliera: +20 XP/giorno\n\nI primi 10 in classifica mensile ricevono **buoni Amazon 50€** e accesso prioritario ai workshop.`;
+case 'pcto':
+return `Per i **PCTO** collaboriamo con istituti tecnici del territorio (es. ITIS Marconi di Dalmine). Percorsi:\n• Intro a Cybersecurity & SOC\n• Lab di AI / Generative AI\n• Cloud basics su AWS/Azure\n• Soft skill per il mondo IT\n\nDocenti scuola + tutor aziendali. Parla con il referente PCTO del tuo istituto per attivarlo.`;
+case 'price':
+return `Per i **dipendenti** WeAreProject tutti i corsi Academy sono **gratuiti** (piano formativo annuale).\n\nPer gli **studenti** Academy4U è gratuita: l'unico investimento è il tuo tempo (2 mesi). Niente costi, niente clausole.`;
+case 'contact':
+return `Puoi raggiungerci qui:\n• 📧 academy@weareproject.it (info corsi)\n• 📧 job@weareproject.it (candidature)\n• 🏢 Via Galileo Galilei, 24050 Stezzano (BG)\n• 🌐 weareproject.it`;
+case 'courses':
+return `Abbiamo **9 corsi flagship** nel catalogo Academy:\n\n☁️ AWS Cloud Practitioner · 🛡️ Cybersecurity Fundamentals\n🤖 AI & ML con Python · ⚛️ React & TypeScript\n🐳 Docker & Kubernetes · 💼 Leadership\n🔐 Zero Trust Security · 🗄️ PostgreSQL\n🧠 Generative AI in Azienda\n\nVuoi dettagli su uno specifico? Scrivi il nome (es. _"parlami di docker"_).`;
+}
+return null;
+}
+
+function wapCareerAdvisor(text) {
+const t = wapNorm(text);
+const profiles = [
+{ role:'cloud', kw:['cloud','aws','azure','infrastruttur','sysadm','devops','sre'],
+  path:['AWS Cloud Practitioner', 'Docker & Kubernetes', 'Zero Trust Security Architecture'],
+  end:'Cloud Engineer → Cloud Architect (3-5 anni)' },
+{ role:'security', kw:['security','sicurezza','soc','siem','hack','pentest','defender'],
+  path:['Cybersecurity Fundamentals', 'Zero Trust Security Architecture', 'AI & Machine Learning con Python'],
+  end:'SOC Analyst L1 → Security Engineer → Security Lead' },
+{ role:'ai', kw:['ai','ml','machine learning','data scientist','llm','python','intelligenza','genai'],
+  path:['AI & Machine Learning con Python', 'Generative AI in Azienda', 'PostgreSQL & Database Design'],
+  end:'AI Engineer → AI Solution Manager' },
+{ role:'fe', kw:['frontend','front end','react','typescript','ui','ux','web'],
+  path:['React & TypeScript Avanzato', 'PostgreSQL & Database Design', 'Leadership & Comunicazione'],
+  end:'Frontend Dev → Full Stack → Tech Lead' },
+{ role:'be', kw:['backend','back end','api','postgres','java','node','microservizi'],
+  path:['PostgreSQL & Database Design', 'Docker & Kubernetes', 'AWS Cloud Practitioner'],
+  end:'Backend Dev → Senior Backend → Solution Architect' }
+];
+for (const p of profiles) {
+if (p.kw.some(k => t.includes(wapNorm(k)))) {
+const steps = p.path.map((c,i)=>`${i+1}. **${c}**`).join('\n');
+return `🚀 **Career path consigliato** (profilo: ${p.role.toUpperCase()})\n\n${steps}\n\n🎯 Obiettivo: _${p.end}_\n\nVuoi che ti apra il primo corso?`;
+}
+}
+return null;
+}
+
+function wapLocalAI(text, history, section) {
+if (!text || !text.trim()) return 'Dimmi pure, sono qui per aiutarti! 😊';
+
+const courseHits = wapMatchCourses(text);
+const intents = wapDetectIntents(text);
+
+// 1) Career advisor ha priorità se intent "career" + parole-chiave ruolo
+if (intents.includes('career')) {
+const ca = wapCareerAdvisor(text);
+if (ca) return ca;
+return `Per costruirti un **career path personalizzato**, dimmi:\n1. Qual è il tuo ruolo o area di interesse? (cloud, security, AI, frontend, backend...)\n2. Che livello hai? (junior, mid, senior)\n3. Obiettivo: certificazione, promozione, cambio ruolo?\n\nCosì costruisco la roadmap giusta per te.`;
+}
+
+// 2) Match diretto su corsi
+if (courseHits.length === 1) {
+const c = courseHits[0];
+return `📘 **${c.title}**\n• Durata: ${c.hours}h\n• Livello: ${c.level}\n• Badge: ${c.cert}\n\nDisponibile nella sezione **Catalogo**. Vuoi che ti suggerisca anche corsi correlati?`;
+}
+if (courseHits.length > 1) {
+const list = courseHits.slice(0,4).map(c=>`• **${c.title}** (${c.hours}h)`).join('\n');
+return `Ho trovato ${courseHits.length} corsi che possono interessarti:\n\n${list}\n\nVuoi i dettagli di uno specifico?`;
+}
+
+// 3) Intent principale
+if (intents.length) {
+const ans = wapAnswer(intents[0], { section, profile: STATE.userProfile });
+if (ans) return ans;
+}
+
+// 4) Suggerimenti context-aware in base alla sezione corrente
+const sectionTips = {
+'dashboard': 'Vedo che sei sulla **Dashboard**. Posso aiutarti a interpretare gli analytics, confrontare i KPI del team o spiegare i grafici. Cosa vuoi sapere?',
+'studenti': 'Sei nella sezione **Studenti**: posso parlarti di Academy4U, requisiti, durata o aiutarti con la candidatura.',
+'dipendenti': 'Sei nella sezione **Dipendenti**: posso suggerirti certificazioni, sessioni di mentoring o il prossimo modulo da completare.',
+'classifiche': 'Sei nelle **Classifiche**: posso spiegarti come guadagnare XP, sbloccare badge o vincere i premi mensili.',
+'profilo': 'Sei sul tuo **Profilo**: posso aiutarti a modificare competenze, scaricare certificati o gestire la streak.'
+};
+if (sectionTips[section]) return sectionTips[section];
+
+// 5) Fallback finale con menu
+return `Non sono sicuro di aver capito. 🤔 Posso aiutarti con:\n\n• 📚 Info sui corsi (es. _"parlami di AWS"_)\n• 🎓 Academy4U (es. _"come funziona il tirocinio"_)\n• 🚀 Career path (es. _"voglio diventare cloud engineer"_)\n• 🏢 Gruppo WeAreProject\n• 📩 Posizioni aperte e contatti\n\nProva a riformulare la domanda!`;
+}
+
+// Compat: alcuni vecchi pezzi del codice chiamano ancora getFallbackAI
 function getFallbackAI(question) {
-const q = question.toLowerCase();
-if (q.includes('academy4u') || q.includes('academy')) return '**Academy4U** è il percorso gratuito di 2 mesi per neodiplomati e neolaureati.\n\nInclude:\n• Lezioni in aula con docenti WeAreProject\n• Affiancamento on the job\n• Possibile assunzione con apprendistato\n\nCandidati inviando il CV a **job@weareproject.it** con oggetto "Candidatura Project ICT Academy".';
-if (q.includes('posizion') || q.includes('lavor') || q.includes('stage')) return 'Abbiamo aperture per:\n• Stage Frontend/Backend Developer\n• PCTO Cybersecurity & AI\n• Junior Cloud Engineer\n\nTutte le posizioni sono a Bergamo/Stezzano. Visita la sezione **Studenti** per i dettagli!';
-if (q.includes('corso') || q.includes('corsi')) return `Abbiamo **9 corsi** principali:\n\n• ☁️ AWS Cloud Practitioner\n• 🛡️ Cybersecurity Fundamentals\n• 🤖 AI & Machine Learning\n• ⚛️ React & TypeScript\n• 🐳 Docker & Kubernetes\n• 💼 Leadership & Comunicazione\n\nTutti allineati alle tecnologie reali di WeAreProject!`;
-if (q.includes('career') || q.includes('percorso') || q.includes('consiglio')) return 'Per un **Career Path personalizzato**, dimmi:\n1. Qual è il tuo ruolo attuale?\n2. Quali tecnologie conosci già?\n3. Qual è il tuo obiettivo? (promozione, certificazione, cambio ruolo)\n\nCosì posso consigliarti i corsi migliori!';
-if (q.includes('weareproject') || q.includes('chi siete') || q.includes('gruppo')) return '**WeAreProject** è un gruppo politecnologico italiano con:\n\n• 510M€ di fatturato\n• 700+ dipendenti\n• 7.500+ clienti enterprise\n• 9 aziende specializzate\n\nCapogruppo: **Project Informatica** di Stezzano (BG). Specializzati in Cloud, Cybersecurity, AI e Digital Workplace.';
-return 'Posso aiutarti con:\n• Informazioni sui corsi Academy\n• Academy4U e posizioni aperte\n• Career Path personalizzato\n• Domande sul Gruppo WeAreProject\n\nCosa vorresti sapere?';
+return wapLocalAI(question, STATE.aiMessages, STATE.currentSection);
 }
 
 function appendAIMessage(text, from) {

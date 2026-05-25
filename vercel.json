@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/ProjectAcademy.html" }
+  ],
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 15
+    }
+  }
+}
